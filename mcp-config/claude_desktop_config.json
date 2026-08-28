@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cys-prompt-suite": {
+      "command": "C:\\Users\\MSI\\.workbuddy\\binaries\\python\\envs\\default\\Scripts\\python.exe",
+      "args": ["-m", "cys_prompt_suite.server"]
+    }
+  }
+}

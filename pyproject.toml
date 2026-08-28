@@ -1,0 +1,19 @@
+[project]
+name = "cys-prompt-suite"
+version = "0.1.0"
+description = "中文提示词工程师 + 合规校验 一体化 MCP（生成即合规闭环），内置 4371 条扩展词库"
+authors = [{name = "chengyansen (cys)"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["fastmcp>=3.0"]
+
+[project.scripts]
+cys-prompt-suite = "cys_prompt_suite.server:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
