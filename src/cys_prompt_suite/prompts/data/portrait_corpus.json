@@ -2636,7 +2636,7 @@
   ],
   "_meta": {
     "source": "迁移01/references/亚洲年轻女性穿搭词库.json",
-    "note": "主人自有技能词库；颜色名/服饰形制名为事实性词汇，可商用"
+    "note": "历史来源标签；当前公开仓库未包含原始来源文件或生成脚本，详见 docs/DATA_PROVENANCE.md"
   },
   "风格_国风签名": [
     "魏晋风骨",
@@ -2703,7 +2703,7 @@
   ],
   "_meta_new": {
     "source": "迁移01/references/{style-presets,real-portrait-corpus}.md",
-    "note": "新增风格/配色/环境/鞋履四类扩展分类；事实性词汇，可商用",
+    "note": "历史扩展分类快照；许可与来源需独立复核，详见 docs/DATA_PROVENANCE.md",
     "new_categories": [
       "风格_国风签名",
       "风格_全球美学",

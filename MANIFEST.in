@@ -1,0 +1,9 @@
+include CHANGELOG.md
+include CONTRIBUTING.md
+include LICENSE
+include README.md
+include REPO_META.md
+include SECURITY.md
+recursive-include docs *.md
+recursive-include mcp-config *.json *.md
+recursive-include tests *.py

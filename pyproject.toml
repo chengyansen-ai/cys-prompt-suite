@@ -1,19 +1,59 @@
 [project]
 name = "cys-prompt-suite"
-version = "0.1.0"
-description = "中文提示词工程师 + 合规校验 一体化 MCP（生成即合规闭环），内置 4371 条扩展词库"
+version = "0.2.0"
+description = "中文人像、动漫与 MiniMax H3 提示词 MCP，内置可复现采样与启发式发布前检查"
 authors = [{name = "chengyansen (cys)"}]
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["fastmcp>=3.0"]
+dependencies = ["fastmcp>=3.4,<4"]
+keywords = ["mcp", "prompt-engineering", "comfyui", "minimax", "chinese"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Multimedia :: Graphics",
+]
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2,<2",
+  "pytest>=9,<10",
+  "ruff>=0.12,<1",
+]
+
+[project.urls]
+Homepage = "https://github.com/chengyansen-ai/cys-prompt-suite"
+Repository = "https://github.com/chengyansen-ai/cys-prompt-suite"
+Issues = "https://github.com/chengyansen-ai/cys-prompt-suite/issues"
 
 [project.scripts]
 cys-prompt-suite = "cys_prompt_suite.server:main"
 
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"cys_prompt_suite.prompts" = ["data/*.json"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]

@@ -1,14 +1,8 @@
-# -*- coding: utf-8 -*-
 """
 prompts_data.py — 中文提示词工程师 MCP 的数据层
 
-萃取自主人本地技能（迁移01 / 迁移2 / h3-prompt-writing）的「可复用模板与约束」。
-这是生成器的知识源，所有技能红线（禁否定词 / CFG=1 无负向 / 头身比 / 鞋履入镜 /
-动作迁移硬约束 / H3 六段式）均在此固化，生成器只做参数化装配，不引入新规则。
-
-注意：本文件只萃取「结构 + 内核段 + 硬约束」，未搬运技能里 1000+ 条的扩展词库
-（real-portrait-corpus / anime_big_lib / style-presets）。需要更丰富的服装/鞋履/背景
-词池时，可把技能 references/ 下的词库直接接入本文件的 STYLE_PRESETS / WORD_BANK。
+这是生成器的模板与约束数据层，包含 CFG=1、头身比、鞋履入镜、动作迁移构图与
+H3 六段式结构。扩展服装、鞋履和背景词池位于 data/*.json。
 """
 
 # ============================================================================
@@ -37,16 +31,15 @@ PORTRAIT_MAKEUP = (
 
 # 段4 身材
 PORTRAIT_BODY = (
-    "青春活力的年轻女性身材，体态匀称自然，纤细的腰身，修长笔直的双腿，精致锁骨清晰可见，"
-    "肩线优美平直，腹部平坦紧致，四肢纤细修长，身材比例自然协调，肌肤白皙透亮，"
-    "充满20岁女孩特有的青春朝气与活力，真实自然的年轻体态"
+    "成年女性自然匀称的体态，肩颈舒展，站姿稳定，四肢比例协调，"
+    "肌肤与骨骼结构真实自然，整体呈现健康、自信且不过度修饰的状态"
 )
 
 # 段5 装饰（黑长直发基底，可按需改发色/首饰）
 PORTRAIT_DECOR = (
     "黑色长直发如瀑布般披散在肩上，发质柔顺有光泽如同黑色丝绸，"
-    "几缕发丝自然垂落在胸前若隐若现地遮挡着饱满胸部，{jewelry}，美甲整洁美观涂着淡粉色甲油，"
-    "脚踝处可系细链装饰，整体装饰提升时尚感和精致度，每个细节都散发致命吸引力"
+    "几缕发丝自然垂落在肩前，{jewelry}，美甲整洁并涂着淡粉色甲油，"
+    "脚踝处可系细链装饰，整体装饰简洁、协调且精致"
 )
 PORTRAIT_JEWELRY_DEFAULT = (
     "简约精致的珠宝配饰，细链条项链垂落在锁骨间，小巧耳钉，精致手链"
@@ -62,9 +55,9 @@ PORTRAIT_POSE_MIGRATION = (
     "脚穿{shoes}清晰完整地展示在画面最底部方便AI采集全身包括鞋子的完整数据"
 )
 PORTRAIT_POSE_FREE = (
-    "身体笔直站立面向镜头重心落于一条腿姿态挺拔自信展现全身S型曲线，"
-    "一只手轻轻撩起发丝另一只手自然垂落身侧手指放松修长，嘴角带着若有若无的妩媚笑意眼神直视镜头，"
-    "身体微微前倾凸显丰满胸部，腰肢微扭展现完美臀线，双脚并拢脚穿{shoes}优雅站立"
+    "身体自然站立并面向镜头，重心稳定，姿态挺拔自信，"
+    "一只手轻轻整理发丝，另一只手自然垂落身侧，手指放松，面带自然浅笑并平视镜头，"
+    "肩颈舒展，躯干保持自然中立位，双脚微错落，脚穿{shoes}完整入镜"
 )
 PORTRAIT_POSE_HALFBODY = (
     "身体正面直立面向镜头重心居中，双肩放松下沉呈自然水平，"
@@ -75,12 +68,12 @@ PORTRAIT_POSE_HALFBODY = (
 PORTRAIT_CAM_MIGRATION = (
     "Full body standing pose capture（全身垂直站立姿态采集），正面平视机位与人物平齐，"
     "全身垂直构图从头顶到脚底完整入镜绝不裁切，画面底部必须完整包含鞋子且鞋子清晰可见占比不小于画面高度6%，"
-    "头部面部占比严格不超过画面总高度的25%，从腰线到脚底的腿部区域必须占据画面人物高度的65%以上"
+    "头部面部占比严格不超过画面总高度的25%，从腰线到脚底的腿部区域必须占据画面人物高度的65%以上，"
     "下半身是视觉主体而非面部，全身等比无畸变无透视压缩，8K超高清画质，RAW格式原片，"
     "焦点对准全身确保从头到脚全部清晰锐利尤其开衩处腿部线条和鞋履细节清晰可辨，"
     "景深适中确保人物全身清晰而背景适度虚化，完美还原肌肤质感和服装每一处细节，"
     "色彩科学精准肤色白皙透粉自然，构图完美居中，人物在画面中占据约90%高度且下半身腿部区域占比大于上半身，"
-    "顶部留白适中底部必须完整保留鞋子可见，无AI痕迹，专业动作采集摄影质感如同动作迁移采集棚的标准全身扫描图"
+    "顶部留白适中底部必须完整保留鞋子可见，自然摄影质感如同动作迁移采集棚的标准全身扫描图"
 )
 PORTRAIT_CAM_HALFBODY = (
     "上半身中景构图，85mm镜头取景至腰部以上，正面平视机位与人物胸部平齐，"
@@ -134,7 +127,7 @@ ANIME_JP8 = [
 ANIME_QUALITY_HEAD = "(masterpiece:1.2), (best quality:1.2), high resolution, ultra-detailed, professional, intricate details, sharp focus"
 
 # 默认固定人设（人物迁移同脸，来源于生成器写死项）
-ANIME_DEFAULT_FACE = "瓜子脸大圆眼，漆黑长直发，极白透粉肌肤，沙漏身材"
+ANIME_DEFAULT_FACE = "瓜子脸大圆眼，漆黑长直发，自然透亮肤色，体态匀称"
 
 # ============================================================================
 # H3（海螺3 / MiniMax）视频提示词结构常量
@@ -148,16 +141,28 @@ H3_REF_FIELDS = [
 
 # 健康向内容类型（范围红线：不做口播/讲解/讲课，只舞蹈/转场/展示/走秀）
 H3_CONTENT_TYPES = {
-    "dance": "健康向国风舞：双臂舒展、水袖/裙摆随旋转飞扬、以腰为轴的舒缓回旋、步态轻盈",
-    "transition": "在舞蹈流动中做场景/服饰/光线渐变，转场如舞步连贯顺滑、无跳切",
-    "showcase": "匀速行进、定点转身、衣摆拖尾，镜头小幅环绕",
-    "catwalk": "走秀：匀速行进、定点转身、衣摆拖尾",
+    "dance": (
+        "She performs a graceful Chinese-style dance with open arm lines, controlled turns, "
+        "light steps, and fabric motion that follows her movement."
+    ),
+    "transition": (
+        "Her continuous movement motivates a gradual change in costume, environment, and light; "
+        "the transformation remains seamless with no hard cut."
+    ),
+    "showcase": (
+        "She presents the complete outfit with a calm weight shift and one measured turn while "
+        "the camera makes a subtle arc."
+    ),
+    "catwalk": (
+        "She walks at a steady runway pace, pauses at a clear mark, turns once, and settles into "
+        "a stable full-body final pose."
+    ),
 }
 
 # ============================================================================
 # 风格预设（可直接套用的 服装/环境/配色签名）
 # 形式上 {scene, top, bottom, shoes, colors, light, light_en, atmosphere, mood}
-# 仅示例级，覆盖主人常用场景；完整词库见技能 references/style-presets.md
+# 内置常用场景示例；扩展词库由 data/*.json 提供。
 # ============================================================================
 
 STYLE_PRESETS = {

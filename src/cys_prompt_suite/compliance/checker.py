@@ -1,13 +1,20 @@
-# -*- coding: utf-8 -*-
 """
 checker.py — 合规扫描逻辑
 
 对输入文本做精确短语匹配（白名单式，避免单字误伤），结合结构化规则库，
 输出违规项、严重度、命中词与改写建议，并支持发布自检清单与规则解释。
 """
-import re
+import unicodedata
+
+from ..validation import validate_choice, validate_optional_text
 from .rules import (
-    RULES, BANNED_PHRASES, PLATFORMS, SELF_CHECK_COMMON, SELF_CHECK_REAL, SELF_CHECK_ANIME,
+    BANNED_PHRASES,
+    PLATFORMS,
+    RULES,
+    RULESET_INFO,
+    SELF_CHECK_ANIME,
+    SELF_CHECK_COMMON,
+    SELF_CHECK_REAL,
 )
 
 # content_type -> 适用的规则 scope
@@ -20,7 +27,12 @@ _SCOPE_MAP = {
 
 
 def _norm(text: str) -> str:
-    return text.lower()
+    return unicodedata.normalize("NFKC", text).casefold()
+
+
+def _validate_context(content_type: str, platform: str) -> None:
+    validate_choice("content_type", content_type, _SCOPE_MAP)
+    validate_choice("platform", platform, PLATFORMS)
 
 
 def check_text(text: str, content_type: str = "anime", platform: str = "douyin") -> dict:
@@ -31,29 +43,27 @@ def check_text(text: str, content_type: str = "anime", platform: str = "douyin")
         content_type: "real"(真人写实) / "anime"(二次元) / "common"(通用) / "any"(全规则)
         platform: douyin/kuaishou/shipinhao/xiaohongshu
     """
-    scope = _SCOPE_MAP.get(content_type, "anime")
+    _validate_context(content_type, platform)
+    if text is None:
+        raise ValueError("text must be a string")
+    validate_optional_text("text", text)
+    scope = _SCOPE_MAP[content_type]
     norm = _norm(text)
     violations = []
+    claimed_terms = set()
 
-    # 1) 精确短语黑名单（通用级，命中即记录）
-    for ph in BANNED_PHRASES:
-        if ph.lower() in norm:
-            violations.append({
-                "rule_id": "BANNED",
-                "category": "精确短语黑名单",
-                "severity": "block",
-                "matched": [ph],
-                "suggestion": "删除/替换该精确短语，改写为健康向表达",
-            })
-
-    # 2) 结构化规则
+    # 1) 结构化规则优先，确保一个精确命中词只归属一条规则。
     for r in RULES:
         if scope is not None and r["scope"] != "common" and r["scope"] != scope:
             continue
         if not r["patterns"]:
             continue  # 无 pattern 的规则（如 AI标识/肖像权）由自检清单覆盖，不靠文本匹配
-        hits = [p for p in r["patterns"] if p.lower() in norm]
+        hits = [
+            p for p in r["patterns"]
+            if _norm(p) in norm and _norm(p) not in claimed_terms
+        ]
         if hits:
+            claimed_terms.update(_norm(p) for p in hits)
             violations.append({
                 "rule_id": r["id"],
                 "category": r["category"],
@@ -62,39 +72,56 @@ def check_text(text: str, content_type: str = "anime", platform: str = "douyin")
                 "suggestion": r["suggestion"],
             })
 
+    # 2) 黑名单仅补充尚未被结构化规则认领的精确短语，并合并为一项。
+    banned_hits = [
+        phrase for phrase in BANNED_PHRASES
+        if _norm(phrase) in norm and _norm(phrase) not in claimed_terms
+    ]
+    if banned_hits:
+        claimed_terms.update(_norm(p) for p in banned_hits)
+        violations.append({
+            "rule_id": "BANNED",
+            "category": "精确短语黑名单",
+            "severity": "block",
+            "matched": banned_hits,
+            "suggestion": "替换为健康、客观且不聚焦敏感身体部位的表达",
+        })
+
     blocks = [v for v in violations if v["severity"] == "block"]
     warns = [v for v in violations if v["severity"] == "warn"]
-    pf = PLATFORMS.get(platform, PLATFORMS["douyin"])
+    pf = PLATFORMS[platform]
 
     summary = {
         "passed": len(blocks) == 0,
         "block_count": len(blocks),
         "warn_count": len(warns),
         "platform": pf["name"],
-        "platform_tolerance": pf["tolerance"],
         "ai_label_required": True,
+        "requires_human_review": True,
         "message": (
-            "通过：未发现硬性违规，但仍须打AI标识并过自检清单"
+            "启发式扫描未命中阻断规则；仍须人工复核权利、画面、语境与 AI 标识要求"
             if not blocks else
-            f"不通过：发现 {len(blocks)} 项硬性违规（限流/下架/处罚风险），须修改后重检"
+            f"发现 {len(blocks)} 项预设阻断规则命中；须修改、复检并人工终审"
         ),
     }
-    return {"summary": summary, "violations": violations}
+    return {"summary": summary, "violations": violations, "ruleset": RULESET_INFO.copy()}
 
 
 def self_check_list(content_type: str = "anime", platform: str = "douyin") -> dict:
     """返回发布自检清单（通用 + 类型专属 + 平台提示）。"""
-    scope = _SCOPE_MAP.get(content_type, "anime")
+    _validate_context(content_type, platform)
+    scope = _SCOPE_MAP[content_type]
     items = list(SELF_CHECK_COMMON)
     if scope in (None, "real"):
         items += SELF_CHECK_REAL
     if scope in (None, "anime"):
         items += SELF_CHECK_ANIME
-    pf = PLATFORMS.get(platform, PLATFORMS["douyin"])
+    pf = PLATFORMS[platform]
     return {
         "platform": pf["name"],
         "ai_label": pf["ai_label"],
-        "tolerance": pf["tolerance"],
+        "ruleset": RULESET_INFO.copy(),
+        "requires_human_review": True,
         "checklist": [{"item": it, "done": False} for it in items],
     }
 
@@ -114,4 +141,4 @@ def explain_rule(rule_id: str) -> dict | None:
 
 
 def list_platforms() -> dict:
-    return PLATFORMS
+    return {**PLATFORMS, "_ruleset": RULESET_INFO.copy()}

@@ -1,48 +1,37 @@
-# Contributing · 贡献指南
+# Contributing
 
-欢迎贡献！本项目是 cys（chengyansen）的开源工作，任何改进都欢迎提 Issue / PR。
+欢迎提交可验证的小改动。行为变化应先写回归测试，再修改实现。
 
-## 环境
-
-```bash
-# 建议 Python 3.11+；唯一运行时依赖 fastmcp>=3.0
-pip install -e .[dev]   # dev: pytest
-```
-
-## 目录结构
-
-```
-cys-prompt-suite/
-├── scripts/ingest_references.py   # 词库归一化（从 skills references/ 生成 data/*.json，可复现）
-├── src/cys_prompt_suite/
-│   ├── prompts/                   # 三个生成器 + 词库（portrait / anime / h3 / wordbank）
-│   ├── compliance/                # 合规规则与扫描（rules / checker）
-│   ├── aggregator.py              # 生成即合规 闭环层
-│   └── server.py                  # FastMCP server（9 工具）
-└── tests/                         # 冒烟 + 闭环 + stdio 往返测试
-```
-
-## 词库怎么维护
-
-1. 词库 JSON 由 `scripts/ingest_references.py` 从**事实性词汇源**（颜色名 / 服饰形制名 / 背景名）
-   归一化生成，**不要手改** `src/**/data/*.json`。
-2. 想扩充词库 → 往 ingest 脚本的候选词表（`OUTFIT_VOCAB` 等）里加词，跑一遍脚本即可，
-   解析时会对词源文件做「存在性校验」，保证可溯源。
-3. 新增规则 → 在 `compliance/rules.py` 注册，并在 `compliance/checker.py` 暴露。
-
-## 红线（不可妥协）
-
-- CFG=1.0 无负向提示词：新增内容禁止引入否定词写法。
-- 内容范围：只做 舞蹈 / 转场 / 展示 / 走秀 等健康向，**不做** 数字人口播 / 讲课 / 带货。
-- 合规：发布内容须打 AI 标识；人脸 LoRA 须虚拟形象基底；不做幼态 + 暴露 / 挑逗。
-
-## 提交前
+## 本地环境
 
 ```bash
-python tests/test_generators.py
-python tests/test_suite.py
-python tests/test_server_suite.py
-python tests/test_full_stdio.py     # 官方 mcp 客户端 stdio 往返（9 工具全调用）
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS/Linux: source .venv/bin/activate
+python -m pip install -e ".[dev]"
 ```
 
-全部 `PASS` 再发 PR。
+## 提交前检查
+
+```bash
+python -m ruff check .
+python -m pytest -q
+python -m build
+```
+
+新增或修改 MCP 工具时，同时更新内存调用和 stdio 往返测试。修改打包配置时，检查 wheel
+中存在 `portrait_corpus.json` 与 `anime_lib.json`。
+
+## 数据和规则变更
+
+- 词库贡献必须按 [`docs/DATA_PROVENANCE.md`](./docs/DATA_PROVENANCE.md) 记录来源、日期、
+  许可/条款、转换方法、权利风险和计数变化。
+- 不要提交私人词库、个人数据、未授权的人脸、抓取的创作性长文本或密钥。
+- 新增合规规则必须附正例、反例和规范来源日期。
+- 不要把启发式命中写成法律结论或平台放行保证。
+- 第三方品牌或角色家族必须保持默认关闭，并有明确的显式启用路径。
+
+## Pull request
+
+说明问题、设计选择、测试证据和兼容性影响。公共参数或返回结构变化应更新 README、
+CHANGELOG 和相应测试。安全问题请按 [`SECURITY.md`](./SECURITY.md) 私下报告。

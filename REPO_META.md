@@ -1,32 +1,26 @@
-# GitHub 仓库元信息（建仓库时复制粘贴用）
+# GitHub 仓库元信息
 
-## 仓库名
+## Description
 
-`cys-prompt-suite`
+中文人像、动漫与 MiniMax H3 提示词 MCP：可复现词库采样、严格参数校验、风险短语复检，以及默认隔离第三方 IP 的商用友好边界。
 
-## 描述（Description）
+## About 长介绍
 
-生成即合规的中文提示词 MCP：写实人像 / 动漫角色 / 海螺3 视频三类生成 + 四平台合规闭环，内置 8800+ 条词库，一次调用拿到可直接出图、可直接发布的提示词。
+`cys-prompt-suite` 把写实人像 9 段式、动漫角色 6 段式和 MiniMax H3
+T2VA/I2VA/FL2VA/L2VA/Ref2VA 提示词封装成 9 个 FastMCP 工具。它支持固定 seed
+采样、首末帧时长对齐、结构化风险命中和确定性改写；所有检查结果都明确要求人工终审。
 
-## 一屏简介（About · 长描述）
+词库公开区分“8,865 个索引条目”和“3,455 个唯一字符串”。47 个第三方游戏 IP
+家族默认不展示、不生成，确有授权时才允许显式启用。项目本地运行，无遥测、无 GPU
+要求，并提供 pytest、stdio 往返、wheel 数据检查和 Python 3.10–3.12 CI。
 
-**它是什么**：把三类中文 AI 提示词技能（写实人像 9 段式 / 动漫角色 6 段式 / 海螺3 视频）与一套平台合规护栏，合成一个 MCP 服务。核心亮点是「**生成即合规**」闭环——生成提示词后自动过合规校验，命中红线自动清洗复检，返回可直接出图、可直接发布的提示词与自检清单，9 个工具一次挂载即用。
+## Topics
 
-**收录了什么**：内置 **8800+ 条**事实性扩展词库——
-- 写实 55 分类：服装形制 / 国风汉服 / 鞋履 / 背景 / 中国传统色 / 饰品 / 全球美学风格 / 配色方案
-- 动漫 80 家族五维池：17 服装家族（汉服/旗袍/和服/女仆/机甲/骑士/泳装/晚礼服…）+ 47 游戏家族（原神/剑网3/鸣潮/阴阳师/明日方舟…），附游戏锚点、背景池、饰品池、鞋履池、游戏色板
-- 全部从 6 个 md 词表（背景多样性库 / 游戏服装多样性库 / 国风素材库 / 服装×背景联合索引 / style-presets / real-portrait-corpus）可复现归一化，`seed` 可复现采样。
+`mcp` `model-context-protocol` `fastmcp` `prompt-engineering` `chinese-prompts`
+`comfyui` `minimax` `h3` `ai-safety` `python`
 
-**突出了什么**：中文优先、CFG=1.0 无负向提示词（安全只靠正向约束）；动作迁移硬约束（T-pose / 头≤25% / 腿≥65% / 鞋履≥6% / 日本 8 词防切脚）；健康向红线固化（只产出舞蹈 / 转场 / 展示 / 走秀，不做数字人口播 / 讲课 / 带货）。
+## 建议置顶信息
 
-**应用到哪**：ComfyUI / Krea2 出图底图、海螺3 H3 视频提示词、抖音 / 快手 / 视频号 / 小红书 发布前合规自检；挂载到 Claude Desktop / Cursor 等任意 MCP 客户端即可调用。
-
-## Topics（标签）
-
-`mcp` `model-context-protocol` `ai-prompt` `prompt-engineering` `compliance`
-`chinese-ai` `claude-desktop` `cursor` `comfyui` `hailuo` `fastmcp` `python`
-
-## 引用（可选）
-
-- 词库溯源与可商用说明：见 `README.md` §6
-- 客户端接入：见 `mcp-config/README.md`
+- 状态：Beta，不是平台认证的自动审核器。
+- 安装：当前 README 只承诺从源码安装；确认发布 PyPI 后再增加 PyPI 文案。
+- 商用：MIT 覆盖代码，数据、第三方 IP、模型与输出需分别评估。

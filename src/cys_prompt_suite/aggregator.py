@@ -1,34 +1,54 @@
-# -*- coding: utf-8 -*-
 """
 aggregator.py — cys-prompt-suite 闭环聚合层（「生成即合规」）
 
 把「提示词生成」与「合规校验」串成一个自动闭环：
   1) 调对应生成器产出提示词
   2) 用合规扫描器校验（命中违规项 + 严重度 + 建议）
-  3) 若未通过，自动清洗命中的精确短语/规则词，复检直到通过或给出安全改写
+  3) 若命中阻断规则，替换已命中的精确短语并复检
 
 对外暴露 generate_and_check（套件主工具）及 audit_prompt（纯校验）。
 """
 import inspect
+import re
+import unicodedata
 
-from .prompts import portrait, anime, h3
 from .compliance import checker
-from .compliance.rules import BANNED_PHRASES, RULES
+from .compliance.rules import RULESET_INFO
+from .prompts import anime, h3, portrait
+
+_REPLACEMENT_GROUPS = {
+    "舒展转身": {"扭臀", "顶胯", "扭胯", "蹭腿", "抚摸身体"},
+    "自然面向镜头": {"向镜头挑逗", "舔唇", "媚眼", "挑逗"},
+    "端庄长款服装": {
+        "透视装", "透视露点", "超高开叉", "仅内衣", "比基尼", "露脐", "透视",
+        "裸体", "全裸", "半裸", "裸露", "走光", "露点",
+    },
+    "健康向表达": {"福利", "私密", "深夜", "懂的都懂", "性暗示", "情色", "色情", "淫秽"},
+    "中远景全身构图": {"胸特写", "臀特写", "巨乳特写", "臀部特写", "腿根", "裙底", "胸臀特写"},
+}
+_REPLACEMENTS = {
+    term: replacement
+    for replacement, terms in _REPLACEMENT_GROUPS.items()
+    for term in terms
+}
 
 
-def _sanitize(text: str):
-    """闭环自校正：移除命中的精确短语与规则 pattern（仅作兜底，生成器已内置安全约束）。"""
+def _sanitize(text: str, report: dict):
+    """Rewrite only terms reported by the checker, then normalize punctuation."""
     removed = []
-    out = text
-    for ph in BANNED_PHRASES:
-        if ph and ph in out:
-            out = out.replace(ph, "")
-            removed.append(ph)
-    for r in RULES:
-        for p in r.get("patterns", []) or []:
-            if p and p in out:
-                out = out.replace(p, "")
-                removed.append(p)
+    out = unicodedata.normalize("NFKC", text)
+    matched = {
+        term
+        for violation in report["violations"]
+        for term in violation.get("matched", [])
+    }
+    for term in sorted(matched, key=len, reverse=True):
+        if term in out:
+            out = out.replace(term, _REPLACEMENTS.get(term, "健康向表达"))
+            removed.append(term)
+    for replacement in _REPLACEMENT_GROUPS:
+        out = re.sub(f"(?:{re.escape(replacement)}){{2,}}", replacement, out)
+    out = re.sub(r"([，、；。])\1+", r"\1", out)
     return out, removed
 
 
@@ -57,11 +77,18 @@ def generate_and_check(
         {kind, prompt, compliance, passed, needs_sanitize, sanitized_terms,
          safe_prompt, safe_compliance, safe_passed, self_check, notes}
     """
-    ct = compliance_type or _KIND_DEFAULT_CT.get(kind, "common")
+    if kind not in _KIND_DEFAULT_CT:
+        raise ValueError(f"未知 kind：{kind}（支持 portrait/anime/h3）")
+    ct = compliance_type or _KIND_DEFAULT_CT[kind]
 
-    # 按目标生成器签名过滤透传参数，避免不相关参数引发 TypeError
+    # 按目标生成器签名验证透传参数，拼写错误必须显式失败。
     def _bind(fn, kwargs):
         params = inspect.signature(fn).parameters
+        unsupported = sorted(set(kwargs) - set(params))
+        if unsupported:
+            raise ValueError(
+                "unsupported generator argument(s): " + ", ".join(unsupported)
+            )
         return {k: v for k, v in kwargs.items() if k in params}
 
     if kind == "portrait":
@@ -70,8 +97,6 @@ def generate_and_check(
         gen = anime.generate_anime_prompt(seed=seed, **_bind(anime.generate_anime_prompt, gen_kwargs))
     elif kind == "h3":
         gen = h3.generate_h3_prompt(**_bind(h3.generate_h3_prompt, gen_kwargs))
-    else:
-        raise ValueError(f"未知 kind：{kind}（支持 portrait/anime/h3）")
 
     prompt = gen["prompt"]
     rep = checker.check_text(prompt, content_type=ct, platform=platform)
@@ -79,7 +104,7 @@ def generate_and_check(
     safe_prompt = prompt
     sanitized = []
     if not rep["summary"]["passed"]:
-        safe_prompt, sanitized = _sanitize(prompt)
+        safe_prompt, sanitized = _sanitize(prompt, rep)
         rep2 = checker.check_text(safe_prompt, content_type=ct, platform=platform)
     else:
         rep2 = rep
@@ -94,6 +119,9 @@ def generate_and_check(
         "safe_prompt": safe_prompt,
         "safe_compliance": rep2,
         "safe_passed": rep2["summary"]["passed"],
+        "requires_human_review": True,
+        "ruleset": RULESET_INFO.copy(),
+        "sanitization_status": "rewritten_and_rechecked" if sanitized else "not_needed",
         "self_check": checker.self_check_list(content_type=ct, platform=platform),
         "notes": gen.get("notes", []),
     }

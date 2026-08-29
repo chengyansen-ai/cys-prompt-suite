@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 server.py — cys-prompt-suite 一体化 MCP（FastMCP server）
 
@@ -8,7 +7,7 @@ server.py — cys-prompt-suite 一体化 MCP（FastMCP server）
 暴露工具：
   生成类（复用 prompts 子包）
     1. generate_portrait_prompt — 写实人像 9 段式（词库 2646 条 / 55 分类）
-    2. generate_anime_prompt    — 动漫角色 6 段式（词库 80 家族五维池 + 全局池 / 8800+ 条）
+    2. generate_anime_prompt    — 动漫角色 6 段式（80 家族五维池 + 全局池）
     3. generate_h3_prompt       — 海螺3 视频提示词
   校验类（复用 compliance 子包）
     4. check_prompt             — 合规扫描
@@ -23,11 +22,13 @@ server.py — cys-prompt-suite 一体化 MCP（FastMCP server）
 """
 from fastmcp import FastMCP
 
-from .prompts import portrait as _portrait, anime as _anime, h3 as _h3
+from . import aggregator as _agg
+from .compliance import checker as _checker
+from .prompts import anime as _anime
+from .prompts import h3 as _h3
+from .prompts import portrait as _portrait
 from .prompts import prompts_data
 from .prompts import wordbank as _wordbank
-from .compliance import checker as _checker
-from . import aggregator as _agg
 
 mcp = FastMCP("cys-prompt-suite")
 
@@ -36,7 +37,7 @@ mcp = FastMCP("cys-prompt-suite")
 
 @mcp.tool()
 def generate_portrait_prompt(
-    character: str = "20岁亚洲年轻女性",
+    character: str = "20岁成年亚洲女性",
     composition: str = "full_body",
     motion_migration: bool = False,
     style: str | None = None,
@@ -79,17 +80,19 @@ def generate_anime_prompt(
     lora_strength: float = 0.6,
     use_wordbank: bool = True,
     seed: int | None = None,
+    allow_third_party_ip: bool = False,
 ) -> dict:
     """生成动漫/二次元角色提示词（迁移2 中文 6 段式 + Danbooru tag）。
 
     默认成年(18)、长款覆盖端庄、领口双清、背景绚丽无移动物。
-    use_wordbank=True 时按家族从 80 家族/8800+ 条扩展词库采样服装/背景/鞋履/饰品/配色。
+    use_wordbank=True 时按家族从 80 家族与全局池采样服装/背景/鞋履/饰品/配色。
     """
     return _anime.generate_anime_prompt(
         family=family, mode=mode, art_style=art_style, character=character,
         outfit=outfit, shoes=shoes, background=background, use_lora=use_lora,
         lora_name=lora_name, lora_strength=lora_strength,
         use_wordbank=use_wordbank, seed=seed,
+        allow_third_party_ip=allow_third_party_ip,
     )
 
 
@@ -101,6 +104,7 @@ def generate_h3_prompt(
     non_diegetic_music: str | None = None,
     first_frame_desc: str | None = None,
     last_frame_desc: str | None = None,
+    duration_seconds: float | None = None,
     content_type: str = "dance",
     character: str | None = None,
     scene1: str | None = None,
@@ -124,6 +128,7 @@ def generate_h3_prompt(
         non_diegetic_music=non_diegetic_music,
         first_frame_desc=first_frame_desc,
         last_frame_desc=last_frame_desc,
+        duration_seconds=duration_seconds,
         content_type=content_type,
         character=character,
         scene1=scene1, scene2=scene2,
@@ -147,6 +152,8 @@ def list_prompt_options() -> dict:
         "h3_modes": ["T2VA", "I2VA", "FL2VA", "L2VA", "Ref2VA"],
         "wordbank_portrait_categories": _wordbank.get_portrait_categories(),
         "wordbank_anime_families": _wordbank.list_anime_families(),
+        "third_party_ip_families": sorted(_wordbank.THIRD_PARTY_IP_FAMILIES),
+        "wordbank_stats": _wordbank.get_wordbank_stats(),
     }
 
 
@@ -175,7 +182,7 @@ def explain_rule(rule_id: str) -> dict:
 
 @mcp.tool()
 def list_platforms() -> dict:
-    """列出抖音/快手/视频号/小红书 四平台审核差异。"""
+    """列出支持的发布渠道及需要复核的 AI 标识提醒。"""
     return _checker.list_platforms()
 
 
@@ -206,8 +213,24 @@ def generate_and_check(
     art_style: str | None = None,
     outfit: str | None = None,
     background: str | None = None,
+    allow_third_party_ip: bool = False,
     content_type: str | None = None,
     h3_mode: str | None = None,
+    duration_seconds: float | None = None,
+    integrated_multimodal_description: str | None = None,
+    overall_soundscape: str | None = None,
+    non_diegetic_music: str | None = None,
+    first_frame_desc: str | None = None,
+    last_frame_desc: str | None = None,
+    scene1: str | None = None,
+    scene2: str | None = None,
+    outfit1: str | None = None,
+    outfit2: str | None = None,
+    retention_note: str | None = None,
+    subject_definitions: str | None = None,
+    summary: str | None = None,
+    retention_analysis: str | None = None,
+    detailed_description: str | None = None,
 ) -> dict:
     """生成提示词并自动过合规校验，形成「生成即合规」闭环。
 
@@ -227,22 +250,63 @@ def generate_and_check(
         {kind, prompt, compliance, passed, needs_sanitize, sanitized_terms,
          safe_prompt, safe_compliance, safe_passed, self_check, notes}
     """
-    gen = {}
-    for k, v in {
-        "character": character, "composition": composition, "motion_migration": motion_migration,
-        "style": style, "scene": scene, "shoes": shoes, "use_lora": use_lora,
-        "lora_name": lora_name, "lora_strength": lora_strength,
-        "extra_clothing": extra_clothing, "extra_env": extra_env, "palette": palette,
-        "family": family, "mode": mode, "art_style": art_style, "outfit": outfit,
-        "background": background, "content_type": content_type,
-    }.items():
-        if v is not None:
-            gen[k] = v
-    if h3_mode is not None:
-        gen["mode"] = h3_mode
+    common = {
+        "character": character,
+        "use_lora": use_lora,
+        "lora_name": lora_name,
+        "lora_strength": lora_strength,
+        "use_wordbank": use_wordbank,
+    }
+    if kind == "portrait":
+        gen = {
+            **common,
+            "composition": composition,
+            "motion_migration": motion_migration,
+            "style": style,
+            "scene": scene,
+            "shoes": shoes,
+            "extra_clothing": extra_clothing,
+            "extra_env": extra_env,
+            "palette": palette,
+        }
+    elif kind == "anime":
+        gen = {
+            **common,
+            "family": family,
+            "mode": mode,
+            "art_style": art_style,
+            "outfit": outfit,
+            "shoes": shoes,
+            "background": background,
+            "allow_third_party_ip": allow_third_party_ip,
+        }
+    elif kind == "h3":
+        gen = {
+            "mode": h3_mode,
+            "content_type": content_type,
+            "character": character,
+            "duration_seconds": duration_seconds,
+            "integrated_multimodal_description": integrated_multimodal_description,
+            "overall_soundscape": overall_soundscape,
+            "non_diegetic_music": non_diegetic_music,
+            "first_frame_desc": first_frame_desc,
+            "last_frame_desc": last_frame_desc,
+            "scene1": scene1,
+            "scene2": scene2,
+            "outfit1": outfit1,
+            "outfit2": outfit2,
+            "retention_note": retention_note,
+            "subject_definitions": subject_definitions,
+            "summary": summary,
+            "retention_analysis": retention_analysis,
+            "detailed_description": detailed_description,
+        }
+    else:
+        gen = {}
+    gen = {key: value for key, value in gen.items() if value is not None}
     return _agg.generate_and_check(
         kind=kind, compliance_type=compliance_type, platform=platform,
-        seed=seed, use_wordbank=use_wordbank, **gen,
+        seed=seed, **gen,
     )
 
 

@@ -1,23 +1,20 @@
-# -*- coding: utf-8 -*-
 """
 wordbank.py — 扩展词库加载与采样层
 
 数据来自 data/portrait_corpus.json（写实 55 类 / 2646 条）与 data/anime_lib.json
-（动漫 80 家族(原14+17服装+47游戏)五维池 + 全局池 / 8800+ 条），由
-scripts/ingest_references.py 从主人自有技能 references/（含 6 个 md 词表）归一化而来。
+（动漫 80 家族五维池 + 全局池）。统计口径由 get_wordbank_stats() 明确给出。
 本层只做「加载 + 可复现随机采样」，不引入新规则。
 
 所有采样接受 seed 参数，保证测试与复现可重现。
 """
 import json
-import os
 import random
+from importlib import resources
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
 
-
-def _load(name):
-    with open(os.path.join(_HERE, "data", name), "r", encoding="utf-8") as f:
+def _load(name: str) -> dict:
+    data_file = resources.files(__package__).joinpath("data", name)
+    with data_file.open("r", encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -59,9 +56,49 @@ def sample_portrait_color(seed: int | None = None) -> str | None:
 # 动漫角色词库
 # ============================================================================
 
-def list_anime_families() -> list:
-    """返回动漫词库中所有家族名（原14 + 17服装家族 + 47游戏家族）。"""
-    return list(_ANIME["families"].keys())
+THIRD_PARTY_IP_FAMILIES = frozenset(_ANIME.get("game_anchors", []))
+
+
+def list_anime_families(include_third_party_ip: bool = False) -> list[str]:
+    """Return family names, excluding third-party game IP by default."""
+    families = list(_ANIME["families"].keys())
+    if include_third_party_ip:
+        return families
+    return [name for name in families if name not in THIRD_PARTY_IP_FAMILIES]
+
+
+def is_third_party_ip_family(family: str) -> bool:
+    """Return whether the bundled family name is a third-party game anchor."""
+    return family in THIRD_PARTY_IP_FAMILIES
+
+
+def get_wordbank_stats() -> dict[str, int]:
+    """Return reproducible counts with distinct indexed and unique-string totals."""
+    portrait_values = [
+        item
+        for category in get_portrait_categories()
+        for item in _PORTRAIT[category]
+    ]
+    family_values = [
+        item
+        for family in _ANIME["families"].values()
+        for values in family.values()
+        if isinstance(values, list)
+        for item in values
+    ]
+    global_values = [
+        item
+        for key in (*_GLOBAL_DIM_KEY.values(), "colors", "color_palettes", "game_anchors")
+        for item in _ANIME.get(key, [])
+    ]
+    all_values = portrait_values + family_values + global_values
+    return {
+        "portrait_categories": len(get_portrait_categories()),
+        "anime_families_total": len(_ANIME["families"]),
+        "third_party_ip_families": len(THIRD_PARTY_IP_FAMILIES),
+        "indexed_entries": len(all_values),
+        "unique_strings": len(set(all_values)),
+    }
 
 
 def get_anime_family(family: str) -> dict | None:

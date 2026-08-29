@@ -6,8 +6,13 @@ __pycache__/
 build/
 dist/
 .pytest_cache/
+.ruff_cache/
 .venv/
 venv/
+.audit-wheel/
+.wheel-smoke/
+.npm-cache-playwright/
+.playwright-cli/
 
 # OS / editor
 .DS_Store

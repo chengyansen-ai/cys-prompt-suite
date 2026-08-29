@@ -6398,7 +6398,7 @@
   },
   "_meta": {
     "source": "迁移2/references/{背景多样性库,游戏服装多样性库,国风素材库,服装×背景联合索引}.md + anime_big_lib.py",
-    "note": "主人自有技能词库；中国传统色名/汉服形制名/游戏服装原型为事实性词汇，可商用",
+    "note": "历史来源标签；含第三方游戏名称，许可与来源需独立复核，详见 docs/DATA_PROVENANCE.md",
     "family_count": 80,
     "game_anchor_count": 47
   },

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 portrait.py — 迁移01 写实人像 9 段式提示词生成器
 
@@ -9,13 +8,26 @@ portrait.py — 迁移01 写实人像 9 段式提示词生成器
 - 扩展词库（data/portrait_corpus.json，2646 条 / 55 类，含新增 风格_全球美学·配色_风格方案·环境_画框感 等）：
   use_wordbank=True 时按需采样服装/鞋履/背景/配色/饰品。
 """
+from ..validation import validate_choice, validate_lora_strength, validate_optional_text
 from .prompts_data import (
-    PORTRAIT_FACE_FULL, PORTRAIT_FACE_LITE, PORTRAIT_MAKEUP, PORTRAIT_BODY,
-    PORTRAIT_DECOR, PORTRAIT_JEWELRY_DEFAULT,
-    PORTRAIT_POSE_MIGRATION, PORTRAIT_POSE_FREE, PORTRAIT_POSE_HALFBODY,
-    PORTRAIT_CAM_MIGRATION, PORTRAIT_CAM_HALFBODY, PORTRAIT_CAM_FREE,
-    STYLE_PRESETS, SHOES_TEMPLATE, ENV_FRAME_DEFAULT, ENV_MID_DEFAULT,
-    ENV_SKY_DEFAULT, ENV_PARTICLES_DEFAULT,
+    ENV_FRAME_DEFAULT,
+    ENV_MID_DEFAULT,
+    ENV_PARTICLES_DEFAULT,
+    ENV_SKY_DEFAULT,
+    PORTRAIT_BODY,
+    PORTRAIT_CAM_FREE,
+    PORTRAIT_CAM_HALFBODY,
+    PORTRAIT_CAM_MIGRATION,
+    PORTRAIT_DECOR,
+    PORTRAIT_FACE_FULL,
+    PORTRAIT_FACE_LITE,
+    PORTRAIT_JEWELRY_DEFAULT,
+    PORTRAIT_MAKEUP,
+    PORTRAIT_POSE_FREE,
+    PORTRAIT_POSE_HALFBODY,
+    PORTRAIT_POSE_MIGRATION,
+    SHOES_TEMPLATE,
+    STYLE_PRESETS,
 )
 from .wordbank import sample_portrait, sample_portrait_color
 
@@ -45,7 +57,7 @@ def _wb_shoes(style: str | None, seed: int | None) -> str:
 
 
 def generate_portrait_prompt(
-    character: str = "20岁亚洲年轻女性",
+    character: str = "20岁成年亚洲女性",
     composition: str = "full_body",
     motion_migration: bool = False,
     style: str | None = None,
@@ -66,7 +78,7 @@ def generate_portrait_prompt(
 
     参数
     ----
-    character        : 人设（段1），如 "20岁亚洲年轻女性"
+    character        : 人设（段1），如 "20岁成年亚洲女性"
     composition      : "full_body"（动作迁移源图）或 "half_body"（抖音成片/半身参考）
     motion_migration : True 时套用动作迁移硬约束（T-pose/头≤25%/腿≥65%/鞋履≥6%）
     style            : 风格预设名（见 STYLE_PRESETS：唐风/月夜欧式/现代都市/国风仙侠）
@@ -86,6 +98,21 @@ def generate_portrait_prompt(
     ----
     {"prompt": str, "sections": dict, "notes": list}
     """
+    validate_choice("composition", composition, {"full_body", "half_body"})
+    if style is not None:
+        validate_choice("style", style, STYLE_PRESETS)
+    validate_lora_strength(lora_strength)
+    for field_name, value in {
+        "character": character,
+        "scene": scene,
+        "shoes": shoes,
+        "lora_name": lora_name,
+        "extra_clothing": extra_clothing,
+        "extra_env": extra_env,
+        "palette": palette,
+    }.items():
+        validate_optional_text(field_name, value)
+
     is_full = composition == "full_body"
     preset = STYLE_PRESETS.get(style) if style else None
     notes = []
@@ -117,7 +144,9 @@ def generate_portrait_prompt(
         pa = sample_portrait("饰品_头饰", 1, seed=seed) or sample_portrait("饰品_项链", 1, seed=seed)
         if pa:
             wb_acc = pa[0]
-        notes.append("已启用扩展词库(2646条)采样：服装/鞋履/背景/配色/饰品由词库随机填充（seed=%s）" % seed)
+        notes.append(
+            f"已启用扩展词库(2646条)采样：服装/鞋履/背景/配色/饰品由词库随机填充（seed={seed}）"
+        )
 
     # —— 鞋履统一解析（显式 > 预设 > 词库采样 > 默认）——
     if shoes:
@@ -150,7 +179,10 @@ def generate_portrait_prompt(
     # —— 段5 装饰 ——
     decor = PORTRAIT_DECOR.format(jewelry=PORTRAIT_JEWELRY_DEFAULT)
     if wb_acc:
-        decor = decor.rstrip("，整体装饰提升时尚感和精致度，每个细节都散发致命吸引力") + f"，{wb_acc}点缀，整体装饰提升时尚感和精致度"
+        suffix = "，整体装饰简洁、协调且精致"
+        if decor.endswith(suffix):
+            decor = decor[:-len(suffix)]
+        decor += f"，{wb_acc}点缀{suffix}"
     s5 = f"装饰：{decor}"
 
     # —— 段6 动作 ——
@@ -206,7 +238,7 @@ def generate_portrait_prompt(
     # 角色 LoRA 反转补偿：强化下半身与鞋履占比
     if use_lora:
         s7 = s7 + "（角色LoRA反转补偿：视觉重心压在下半身，鞋履完整入镜兜底）"
-        notes.append("已对段7/段9 加 token 反转补偿头部偏置；出图时建议 cys001 权重≤0.6、关闭 Anything_to_Real_Characters")
+        notes.append("已对段7/段9 加构图补偿，降低角色 LoRA 导致的头部放大偏置")
 
     sections = {
         "人物": s1, "面容": f"面容：{face}", "妆容": s3, "身材": s4,
@@ -216,6 +248,6 @@ def generate_portrait_prompt(
 
     if not motion_migration and is_full:
         notes.append("非动作迁移全身照：未加 T-pose 硬约束，可按自由范式调整姿态")
-    notes.append("CFG 锁定 1.0、无负向提示词；发布前须过合规校验（cys-compliance-mcp）")
+    notes.append("CFG 建议 1.0、默认不生成负向提示词；发布前仍须人工复核并按渠道要求标识 AI 内容")
 
     return {"prompt": prompt, "sections": sections, "notes": notes}

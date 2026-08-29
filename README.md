@@ -1,41 +1,60 @@
 # cys-prompt-suite
 
-> 中文提示词工程师 + 平台合规校验 一体化 MCP —— **生成即合规**闭环。
+把中文人像、动漫角色和 MiniMax H3 视频提示词接入 MCP，并在同一次调用中返回
+风险命中、确定性改写结果和人工复核清单。
 
-把三类中文 AI 提示词技能（写实人像 / 动漫角色 / 海螺3 视频）与一套
-**平台合规护栏**合成为一个 MCP 服务：生成提示词后自动过合规校验，命中红线即
-自动清洗复检，返回「安全可直接发布」的提示词与自检清单。
+[![CI](https://github.com/chengyansen-ai/cys-prompt-suite/actions/workflows/ci.yml/badge.svg)](https://github.com/chengyansen-ai/cys-prompt-suite/actions/workflows/ci.yml)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/Code%20License-MIT-green.svg)](./LICENSE)
 
-**用它来做什么**
-- 🎨 **出图**：ComfyUI / Krea2 写实人像与动漫角色底图（动作迁移版内置 T-pose / 头≤25% / 腿≥65% / 鞋履≥6% 硬约束）
-- 🎬 **出视频**：海螺3 H3 T2VA / Ref2VA 等提示词（只产出舞蹈 / 转场 / 展示 / 走秀等健康向内容）
-- 🛡️ **发布合规**：抖音 / 快手 / 视频号 / 小红书 发布前自检 + 自动清洗（打 AI 标识、避低俗引导）
-- 🔌 **接入即用**：挂到 Claude Desktop / Cursor 等任意 MCP 客户端，9 个工具一次装载
+> 当前状态：**Beta**。代码和 MCP 接口已有自动化测试；合规模块是启发式文本检查，
+> 不是法律意见、平台认证，也不会把生成结果变成“可直接发布”的内容。
 
-**收录了什么（8800+ 条事实性扩展词库）**
-- 写实 55 分类（2646 条）：服装形制 / 国风汉服 / 鞋履 / 背景 / 中国传统色 / 饰品 / 全球美学风格 / 配色方案
-- 动漫 80 家族五维池：17 服装家族（汉服/旗袍/和服/女仆/机甲/骑士/泳装/晚礼服…）+ 47 游戏家族（原神/剑网3/鸣潮/阴阳师…）+ 游戏锚点/背景池/饰品池/鞋履池/游戏色板
-- 全部从 6 个 md 词表可复现归一化，`seed` 可复现采样
+## 为什么做这个项目
 
-**突出什么**
-- 中文优先：9 段式 / 6 段式中文模板，紧扣 Krea2 / cysdongman / H3 等本地模型
-- 禁否定词铁律：CFG=1.0 无负向，安全只靠正向约束（长款覆盖 / 领口双清 / 日本8词防切脚）
-- 生成即合规：`generate_and_check` 一次调用完成「生成 → 校验 → 清洗 → 复检」
+普通提示词库往往只解决“写什么”，没有解决“参数是否有效、参考帧是否对齐、数据是否
+真的随 wheel 发布、结果还需要检查什么”。本项目把这几件事放进一个本地 MCP 服务：
 
----
+- 生成写实人像 9 段式、动漫角色 6 段式和 H3 五种模式提示词；
+- 对无效模式、风格、家族和参数明确报错，不再静默回退；
+- 用 `seed` 提供可复现的词库采样；
+- 扫描预设风险短语，必要时做确定性替换并再次检查；
+- 始终返回 `requires_human_review=true`，保留发布前人工终审；
+- 默认隐藏 47 个第三方游戏 IP 家族，只有显式确认后才能启用。
 
-## 1. 安装
+项目本身不调用图像或视频 API，不采集遥测，也不需要 GPU。提示词会经过你的 MCP
+客户端和模型提供方，因此仍应按它们的隐私条款处理。
+
+## 能力一览
+
+| 能力 | 输出 | 关键约束 |
+|---|---|---|
+| 写实人像 | 9 段中文提示词 | 全身/半身、动作迁移构图、可选词库与 LoRA 提示 |
+| 动漫角色 | 6 段中文提示词 + 英文质量标签 | 展示/动作迁移、服装风险词清理、第三方 IP 显式授权开关 |
+| MiniMax H3 | T2VA / I2VA / FL2VA / L2VA / Ref2VA | 首末帧描述、两位小数时长对齐、Ref2VA 固定六段顺序 |
+| 发布前检查 | 结构化命中、建议、复检结果 | NFKC 归一化、去重、规则版本、始终要求人工复核 |
+| MCP 接入 | 9 个工具 | FastMCP stdio，可供支持 MCP 的桌面客户端调用 |
+
+## 30 秒开始
+
+需要 Python 3.10 或更高版本。仓库尚未声明已发布到 PyPI，因此从源码安装：
 
 ```bash
+git clone https://github.com/chengyansen-ai/cys-prompt-suite.git
 cd cys-prompt-suite
-pip install -e .          # 或：uv pip install -e .
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS/Linux: source .venv/bin/activate
+python -m pip install -e .
 ```
 
-依赖：`fastmcp>=3.0`（Apache-2.0）。仅一个运行时依赖，零显卡要求（合规校验纯 CPU）。
+启动 MCP stdio 服务：
 
-## 2. 接入 MCP 客户端
+```bash
+python -m cys_prompt_suite.server
+```
 
-stdio 传输，挂到 Claude Desktop / Cursor / Cline 等任意 MCP 客户端：
+客户端配置示例（`python` 必须是安装了本项目的同一个解释器；生产环境建议填绝对路径）：
 
 ```json
 {
@@ -48,99 +67,126 @@ stdio 传输，挂到 Claude Desktop / Cursor / Cline 等任意 MCP 客户端：
 }
 ```
 
-> 本地用托管 Python 时，把 `command` 换成绝对路径，例如
-> `"C:/Users/MSI/.workbuddy/binaries/python/envs/default/Scripts/python"`。
->
-> 📁 已备好可直接粘贴的配置：见 [`mcp-config/`](./mcp-config/README.md)
-> （`claude_desktop_config.json` 合并进 `%APPDATA%\Claude\claude_desktop_config.json`，
-> `cursor_mcp.json` 存为项目根 `.cursor/mcp.json`）。
+Claude Desktop 和 Cursor 模板见 [`mcp-config/`](./mcp-config/README.md)。
 
-## 3. 工具一览（9 个）
+## 最常用的调用
 
-| 工具 | 作用 |
-|---|---|
-| `generate_portrait_prompt` | 写实人像 9 段式（全身/半身 + 动作迁移硬约束），`use_wordbank` 启用词库 |
-| `generate_anime_prompt` | 动漫角色 6 段式（展示/动作迁移双版），按家族从词库采样 |
-| `generate_h3_prompt` | 海螺3 视频提示词（T2VA/I2VA/FL2VA/L2VA/Ref2VA，仅舞蹈/转场/展示/走秀） |
-| `check_prompt` | 合规扫描：精确短语 + 结构化规则，返回违规项/严重度/建议 |
-| `self_check_list` | 发布前自检清单（通用 + 类型专属 + 平台提示） |
-| `explain_rule` | 解释某条规则 / 黑名单（如 `BANNED` / `A-LOLI` / `R-PORTRAIT-RIGHT`） |
-| `list_platforms` | 抖音/快手/视频号/小红书 四平台审核差异 |
-| `list_prompt_options` | 风格/家族/画风/词库分类清单 |
-| **`generate_and_check`** | **闭环主工具：生成 → 自动合规校验 → 命中即清洗复检** |
-
-## 4. 闭环用法示例
-
-**Python 直接调用**
+### 生成并检查
 
 ```python
 from cys_prompt_suite import aggregator
 
-res = aggregator.generate_and_check(
-    kind="anime", compliance_type="anime", platform="douyin",
-    family="国风仙侠", use_wordbank=True, seed=3,
+result = aggregator.generate_and_check(
+    kind="anime",
+    family="国风仙侠",
+    use_wordbank=True,
+    seed=3,
 )
-print(res["passed"], res["safe_passed"])   # True True
-print(res["prompt"])                        # 可直接喂模型的提示词
-print(res["safe_prompt"])                   # 清洗后的安全版本（若有命中）
+
+print(result["safe_prompt"])
+print(result["safe_passed"])            # 仅代表启发式规则复检结果
+print(result["requires_human_review"])  # 始终为 True
+print(result["ruleset"])
 ```
 
-**MCP 客户端调用** `generate_and_check`，返回结构：
+如果传错参数名，调用会抛出 `ValueError`，不会像早期版本那样悄悄忽略。
 
-```json
-{
-  "kind": "anime",
-  "prompt": "<生成的提示词>",
-  "compliance": { "summary": {...}, "violations": [] },
-  "passed": true,
-  "needs_sanitize": false,
-  "sanitized_terms": [],
-  "safe_prompt": "<同 prompt>",
-  "safe_compliance": { "summary": {...}, "violations": [] },
-  "safe_passed": true,
-  "self_check": { "checklist": [...] },
-  "notes": [...]
-}
+### H3 首末帧对齐
+
+```python
+from cys_prompt_suite.prompts.h3 import generate_h3_prompt
+
+result = generate_h3_prompt(
+    mode="FL2VA",
+    duration_seconds=8,
+    first_frame_desc="a closed umbrella beside a bicycle",
+    last_frame_desc="the same umbrella open above the cyclist",
+    integrated_multimodal_description="She opens it in one continuous shot.",
+)
+print(result["prompt"])
 ```
 
-## 5. 词库说明
+`FL2VA` 和 `L2VA` 必须提供正数 `duration_seconds`，输出使用 `8.00-second mark`
+这样的两位小数对齐格式。
 
-词库存于 `src/cys_prompt_suite/prompts/data/`：
+## 9 个 MCP 工具
 
-- `portrait_corpus.json` — 写实 55 分类 / 2646 条（服装形制、国风汉服、鞋履、背景、中国传统色、饰品，新增 风格_全球美学·配色_风格方案·环境_画框感·鞋履_四要素…）
-- `anime_lib.json` — 动漫 80 家族（原 14 + 17 服装家族 + 47 游戏家族）五维池 + 全局扩展池（COLORS 中国传统色 + 游戏色板、outfit/bg/acc/shoes/style 大池、47 游戏锚点）
+| 工具 | 作用 |
+|---|---|
+| `generate_portrait_prompt` | 生成写实人像 9 段式提示词 |
+| `generate_anime_prompt` | 生成动漫角色 6 段式提示词 |
+| `generate_h3_prompt` | 生成五种 H3 模式提示词 |
+| `generate_and_check` | 生成、扫描、按命中词改写并复检 |
+| `check_prompt` | 扫描已有提示词或文案 |
+| `self_check_list` | 返回通用、内容类型和渠道复核项 |
+| `explain_rule` | 查询指定启发式规则 |
+| `list_platforms` | 返回支持的渠道名称和 AI 标识提醒 |
+| `list_prompt_options` | 返回可用风格、家族、模式和词库统计 |
 
-数据由 `scripts/ingest_references.py` 从主人自有技能 `references/`（含 6 个 md 词表）归一化而来，可复现。
-生成器默认 `use_wordbank=True`（动漫）/ 可选（写实），按 `seed` 可复现采样。
+## 词库：把“累计条目”和“唯一词量”说清楚
 
----
+随 wheel 一起发布的两个 JSON 快照共有：
 
-## 6. ⚖️ 可商用确认（Commercial Use）
+- 写实词库：55 个列表分类，2,646 个索引条目；
+- 动漫词库：80 个家族和多个全局池，其中 47 个是第三方游戏 IP 锚点；
+- 合计：**8,865 个索引条目，3,455 个唯一字符串**。
 
-**结论：本套件可商用（含闭源集成、再分发、商业服务）。**
+“索引条目”会重复计算同一字符串在多个家族或分类中的出现，不能等同于 8,865 个独立词。
+可用 `get_wordbank_stats()` 在运行时复核。数据来源限制和新增数据要求见
+[`docs/DATA_PROVENANCE.md`](./docs/DATA_PROVENANCE.md)。
 
-| 项 | 说明 | 商用结论 |
-|---|---|---|
-| **本仓库代码** | 原创编写，采用 **MIT License** | ✅ 允许商用、修改、再分发、闭源集成 |
-| **运行时依赖** | fastmcp (**Apache-2.0**，含专利授权) / pydantic (**MIT**) / starlette (**BSD-3-Clause**) | ✅ 均为宽松许可，允许商用 |
-| **提示词模板** | 源自主人自有技能（迁移01 / 迁移2 / h3-prompt-writing），为主人自有 IP | ✅ 权利人自行开源，可商用 |
-| **扩展词库** | 颜色名 / 服饰形制名等**事实性词汇**，源自主人自有技能 references（爬取自百度百科、中国传统色站点等公开事实数据） | ✅ 事实性数据，非版权保护客体，可商用 |
-| **第三方版权内容** | 未混入任何受版权保护的创作内容（无歌词、无长段原文、无他人提示词逐字复制） | ✅ 无侵权风险 |
+第三方游戏 IP 家族不会出现在默认列表中。确有授权或其他合法依据时，调用方才能显式启用：
 
-> 免责声明：本工具是「生成辅助 + 合规护栏」，生成结果仍须由使用者按各平台最新规则
-> **主动打 AI 标识**并人工终审。合规校验为规则兜底，不替代法律/平台审核。
+```python
+generate_anime_prompt(
+    family="原神",
+    allow_third_party_ip=True,
+)
+```
 
----
+这个开关只防止误用，不提供任何版权、商标、角色形象或商品化权授权。
 
-## 7. 组件仓库
+## “合规检查”到底保证什么
 
-本套件已整合以下两个独立组件（如需单独使用亦可）：
+检查器会做 Unicode NFKC 归一化、精确短语匹配、规则去重、确定性替换和复检。返回的
+`safe_passed=true` 只表示当前规则集没有再次命中配置短语。它无法识别全部语境、画面、
+音频、广告陈述、授权状态或平台实时政策。
 
-- `cys-prompt-mcp` — 仅提示词生成
-- `cys-compliance-mcp` — 仅合规校验
+商用前请阅读 [`docs/COMMERCIAL_USE.md`](./docs/COMMERCIAL_USE.md)，至少人工检查：
 
-`cys-prompt-suite` 将二者 vendored 进 `src/cys_prompt_suite/{prompts,compliance}` 并新增聚合闭环层。
+- 人脸、角色、商标、音乐、字体和参考素材是否有权使用；
+- 下游模型、API 和素材库是否允许你的商业场景；
+- 输出画面和文案是否满足目标地区法律与平台最新规则；
+- 是否按要求添加显式或隐式 AI 内容标识。
 
-## 8. 许可证
+本仓库的 MIT 许可证允许商业使用**代码**，不等于对数据、输入、模型或输出作全面权利清除。
 
-[MIT](./LICENSE) © 2026 chengyansen (cys)
+## 开发与验证
+
+```bash
+python -m pip install -e ".[dev]"
+python -m ruff check .
+python -m pytest -q
+python -m build
+```
+
+测试覆盖参数校验、确定性采样、IP 默认隔离、H3 对齐、合规改写、9 个 MCP 工具的
+内存调用、真实 stdio 往返和包资源读取。CI 在 Python 3.10、3.11、3.12 上运行，并检查
+构建出的 wheel 是否包含两个 JSON 词库。
+
+```text
+src/cys_prompt_suite/          Python 包与 MCP 服务
+├── prompts/                   三类生成器与词库
+├── compliance/                可版本化的启发式规则
+├── aggregator.py              生成、扫描、改写、复检
+└── server.py                  9 个 FastMCP 工具
+tests/                         pytest 与 stdio 回归测试
+docs/                          质量、数据来源与商用边界
+```
+
+贡献方法见 [`CONTRIBUTING.md`](./CONTRIBUTING.md)，漏洞报告见 [`SECURITY.md`](./SECURITY.md)。
+
+## License
+
+代码采用 [MIT License](./LICENSE)。第三方名称、用户输入、下游模型和生成内容的权利需
+分别评估。
